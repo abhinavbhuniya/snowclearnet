@@ -70,40 +70,67 @@ class SnowClearModel:
     @staticmethod
     def _enhance_fallback(img: np.ndarray) -> np.ndarray:
         """
-        Apply classical image processing to simulate snow removal:
-        1. Reduce bright-white pixel intensity (snow mask)
-        2. Local contrast enhancement (CLAHE-like via numpy)
-        3. Slight warm colour shift
-        4. De-haze via dark channel prior approximation
+        Apply aggressive classical image processing to simulate snow removal.
+        Produces a clearly visible before/after difference.
+
+        Pipeline:
+        1. Heavy snow-pixel suppression (detect & darken bright regions)
+        2. Strong contrast stretch per channel
+        3. Warm colour correction (reduce blue cast from snow)
+        4. De-haze via dark channel prior
+        5. Saturation boost
+        6. Sharpening pass
 
         Input / output: (1, 3, H, W) float32 in [0, 1].
         """
         x = img[0].copy()  # (3, H, W)
 
-        # --- 1. Snow suppression: dampen very bright pixels ---
+        # --- 1. Aggressive snow suppression ---
+        # Snow pixels are bright and low-saturation
         brightness = x.mean(axis=0)  # (H, W)
-        snow_mask = np.clip((brightness - 0.65) / 0.35, 0, 1)  # 1 where bright
-        suppression = 1.0 - 0.35 * snow_mask  # reduce intensity
+        ch_min = x.min(axis=0)
+        ch_max = x.max(axis=0)
+        saturation = (ch_max - ch_min) / (ch_max + 1e-6)
+
+        # Snow = bright + low saturation
+        snow_mask = np.clip((brightness - 0.55) / 0.30, 0, 1) * np.clip((1.0 - saturation * 2), 0, 1)
+        suppression = 1.0 - 0.60 * snow_mask  # heavy darkening of snow areas
         x = x * suppression[np.newaxis, :, :]
 
-        # --- 2. Per-channel contrast stretch ---
+        # --- 2. Strong per-channel contrast stretch ---
         for c in range(3):
-            lo, hi = np.percentile(x[c], [2, 98])
+            lo, hi = np.percentile(x[c], [1, 99])
             if hi - lo > 0.01:
                 x[c] = (x[c] - lo) / (hi - lo)
+        x = np.clip(x, 0, 1)
 
-        # --- 3. Warm colour correction (less blue, more red/green) ---
-        x[0] = x[0] * 1.05          # red  +5%
-        x[1] = x[1] * 1.02          # green +2%
-        x[2] = x[2] * 0.90          # blue  -10%
+        # --- 3. Warm colour correction (remove blue snow cast) ---
+        x[0] = x[0] * 1.12          # red  +12%
+        x[1] = x[1] * 1.05          # green +5%
+        x[2] = x[2] * 0.80          # blue -20%
 
-        # --- 4. Simple de-haze (subtract atmospheric light estimate) ---
+        # --- 4. Stronger de-haze via dark channel prior ---
         dark_ch = x.min(axis=0)
-        atm = np.percentile(dark_ch, 99)
-        t = 1.0 - 0.6 * (dark_ch / (atm + 1e-6))
-        t = np.clip(t, 0.25, 1.0)
+        atm = np.percentile(dark_ch, 99.5)
+        t = 1.0 - 0.85 * (dark_ch / (atm + 1e-6))
+        t = np.clip(t, 0.20, 1.0)
         for c in range(3):
             x[c] = (x[c] - atm * (1 - t)) / (t + 1e-6)
+        x = np.clip(x, 0, 1)
+
+        # --- 5. Saturation boost ---
+        # Convert to HSV-like: boost saturation channel
+        gray = 0.299 * x[0] + 0.587 * x[1] + 0.114 * x[2]
+        sat_factor = 1.40
+        for c in range(3):
+            x[c] = gray + sat_factor * (x[c] - gray)
+        x = np.clip(x, 0, 1)
+
+        # --- 6. Sharpening (unsharp mask via simple kernel) ---
+        from scipy.ndimage import uniform_filter
+        for c in range(3):
+            blurred = uniform_filter(x[c], size=3)
+            x[c] = x[c] + 0.5 * (x[c] - blurred)  # sharpen
 
         x = np.clip(x, 0, 1).astype(np.float32)
         return x[np.newaxis, ...]  # (1, 3, H, W)
