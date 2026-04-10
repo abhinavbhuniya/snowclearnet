@@ -53,45 +53,14 @@ html {
 body {
   font-family: 'Inter', system-ui, sans-serif;
   background: var(--bg-primary);
+  background-image:
+    radial-gradient(ellipse 60% 50% at 85% 10%, rgba(129, 140, 248, 0.15) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 60% at 10% 90%, rgba(56, 189, 248, 0.12) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 40% at 50% 50%, rgba(34, 211, 238, 0.06) 0%, transparent 70%);
   color: var(--text-primary);
   min-height: 100vh;
   overflow-x: hidden;
   line-height: 1.6;
-}
-
-/* Animated background blobs */
-body::before,
-body::after {
-  content: '';
-  position: fixed;
-  border-radius: 50%;
-  filter: blur(120px);
-  opacity: 0.35;
-  z-index: -1;
-  pointer-events: none;
-  animation: blobFloat 18s ease-in-out infinite alternate;
-}
-
-body::before {
-  width: 600px;
-  height: 600px;
-  background: var(--accent-indigo);
-  top: -120px;
-  right: -150px;
-}
-
-body::after {
-  width: 500px;
-  height: 500px;
-  background: var(--accent-blue);
-  bottom: -100px;
-  left: -120px;
-  animation-delay: -9s;
-}
-
-@keyframes blobFloat {
-  0%   { transform: translate(0, 0) scale(1); }
-  100% { transform: translate(40px, 30px) scale(1.12); }
 }
 
 /* ---------------------------------------------------------------
@@ -163,9 +132,7 @@ body::after {
    --------------------------------------------------------------- */
 
 .upload-card {
-  background: var(--bg-card);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  background: rgba(17, 24, 39, 0.85);
   border: 1px solid var(--border-glass);
   border-radius: var(--radius);
   padding: 40px 36px;
@@ -397,9 +364,7 @@ body::after {
    --------------------------------------------------------------- */
 
 .comparison-wrapper {
-  background: var(--bg-card);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  background: rgba(17, 24, 39, 0.85);
   border: 1px solid var(--border-glass);
   border-radius: var(--radius);
   padding: 28px;
@@ -587,13 +552,9 @@ body::after {
     font-size: 0.8rem;
   }
 
-  body::before {
-    width: 300px;
-    height: 300px;
-  }
-
-  body::after {
-    width: 250px;
-    height: 250px;
+  body {
+    background-image:
+      radial-gradient(ellipse 80% 40% at 80% 5%, rgba(129, 140, 248, 0.12) 0%, transparent 70%),
+      radial-gradient(ellipse 60% 50% at 15% 95%, rgba(56, 189, 248, 0.10) 0%, transparent 70%);
   }
 }
