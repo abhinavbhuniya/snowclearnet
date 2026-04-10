@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="SnowClearNet – AI-powered snow removal from images using deep learning with DATSRF architecture." />
+  <title>SnowClearNet – Snow Removal System</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>❄️</text></svg>" />
+</head>
+<body>
+
+  <!-- ============================================================ -->
+  <!-- Spinner overlay (processing)                                 -->
+  <!-- ============================================================ -->
+  <div class="spinner-overlay" id="spinner">
+    <div class="spinner"></div>
+    <p class="spinner-text">Processing your image with SnowClearNet&hellip;</p>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- Error toast                                                  -->
+  <!-- ============================================================ -->
+  <div class="toast" id="toast"></div>
+
+  <!-- ============================================================ -->
+  <!-- Main wrapper                                                 -->
+  <!-- ============================================================ -->
+  <div class="app-wrapper">
+
+    <!-- HEADER -->
+    <header class="header">
+      <span class="header__badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48 2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48 2.83-2.83"/></svg>
+        Deep Learning · DATSRF Architecture
+      </span>
+      <h1 class="header__title">SnowClearNet</h1>
+      <p class="header__subtitle">AI-powered snow removal from images using dual-attention transformer fusion networks.</p>
+    </header>
+
+    <!-- UPLOAD CARD -->
+    <section class="upload-card" id="uploadCard">
+      <div class="drop-zone" id="dropZone">
+        <svg class="drop-zone__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        <p class="drop-zone__text">Drag &amp; drop your snowy image here, or <strong>click to browse</strong></p>
+        <p class="drop-zone__hint">Supports PNG &amp; JPG up to 16 MB</p>
+        <input type="file" id="fileInput" accept=".png,.jpg,.jpeg" hidden />
+        <p class="file-name" id="fileName"></p>
+        <div class="upload-preview" id="uploadPreview">
+          <img id="previewImg" alt="Upload preview" />
+        </div>
+      </div>
+
+      <button class="btn-process" id="btnProcess" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        Process Image
+      </button>
+    </section>
+
+    <!-- RESULTS -->
+    <section class="results" id="results">
+      <h2 class="results__heading">Restoration Results</h2>
+
+      <!-- Metrics -->
+      <div class="metrics">
+        <div class="metric">
+          <span class="metric__label">PSNR</span>
+          <span class="metric__value" id="metricPSNR">—</span>
+          <span class="metric__label">dB</span>
+        </div>
+        <div class="metric">
+          <span class="metric__label">SSIM</span>
+          <span class="metric__value metric__value--ssim" id="metricSSIM">—</span>
+        </div>
+      </div>
+
+      <!-- Before / After slider -->
+      <div class="comparison-wrapper">
+        <div class="comparison" id="comparison">
+          <img class="comparison__before" id="imgBefore" alt="Before – Snow input" />
+          <img class="comparison__after"  id="imgAfter"  alt="After – Restored output" />
+          <div class="comparison__slider" id="slider"></div>
+          <span class="comparison__label comparison__label--before">Before</span>
+          <span class="comparison__label comparison__label--after">After</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer class="footer">
+      <p class="footer__text">
+        <span class="footer__highlight">SnowClearNet</span> &mdash; Developed as part of
+        <span class="footer__highlight">Smart City Traffic Monitoring Project</span><br/>
+        Built with PyTorch &middot; Flask &middot; Supabase
+      </p>
+    </footer>
+
+  </div><!-- /.app-wrapper -->
+
+  <!-- ============================================================ -->
+  <!-- Script                                                       -->
+  <!-- ============================================================ -->
+  <script>
+    (() => {
+      "use strict";
+
+      // ---- DOM refs ----
+      const dropZone      = document.getElementById("dropZone");
+      const fileInput      = document.getElementById("fileInput");
+      const fileName       = document.getElementById("fileName");
+      const uploadPreview  = document.getElementById("uploadPreview");
+      const previewImg     = document.getElementById("previewImg");
+      const btnProcess     = document.getElementById("btnProcess");
+      const spinner        = document.getElementById("spinner");
+      const toast          = document.getElementById("toast");
+      const results        = document.getElementById("results");
+      const imgBefore      = document.getElementById("imgBefore");
+      const imgAfter       = document.getElementById("imgAfter");
+      const metricPSNR     = document.getElementById("metricPSNR");
+      const metricSSIM     = document.getElementById("metricSSIM");
+      const comparison     = document.getElementById("comparison");
+      const slider         = document.getElementById("slider");
+      const beforeImg      = document.getElementById("imgBefore");
+
+      let selectedFile = null;
+
+      // ---- Helpers ----
+      function showToast(msg, durationMs = 4000) {
+        toast.textContent = msg;
+        toast.classList.add("visible");
+        setTimeout(() => toast.classList.remove("visible"), durationMs);
+      }
+
+      // ---- Drop-zone events ----
+      dropZone.addEventListener("click", () => fileInput.click());
+
+      dropZone.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        dropZone.classList.add("drag-over");
+      });
+
+      dropZone.addEventListener("dragleave", () => {
+        dropZone.classList.remove("drag-over");
+      });
+
+      dropZone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dropZone.classList.remove("drag-over");
+        if (e.dataTransfer.files.length) {
+          handleFile(e.dataTransfer.files[0]);
+        }
+      });
+
+      fileInput.addEventListener("change", () => {
+        if (fileInput.files.length) handleFile(fileInput.files[0]);
+      });
+
+      function handleFile(file) {
+        const allowed = ["image/png", "image/jpeg"];
+        if (!allowed.includes(file.type)) {
+          showToast("Unsupported format. Please upload a PNG or JPG image.");
+          return;
+        }
+        if (file.size > 16 * 1024 * 1024) {
+          showToast("File is too large. Maximum size is 16 MB.");
+          return;
+        }
+        selectedFile = file;
+        fileName.textContent = file.name;
+
+        // Show preview
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          previewImg.src = ev.target.result;
+          uploadPreview.style.display = "block";
+        };
+        reader.readAsDataURL(file);
+
+        btnProcess.disabled = false;
+      }
+
+      // ---- Process ----
+      btnProcess.addEventListener("click", async () => {
+        if (!selectedFile) return;
+
+        spinner.classList.add("active");
+        btnProcess.disabled = true;
+
+        const formData = new FormData();
+        formData.append("image", selectedFile);
+
+        try {
+          const res = await fetch("/process", { method: "POST", body: formData });
+          const data = await res.json();
+
+          if (!res.ok) {
+            showToast(data.error || "Something went wrong.");
+            return;
+          }
+
+          // Populate results
+          imgBefore.src = data.input_url;
+          imgAfter.src  = data.output_url;
+          metricPSNR.textContent = data.psnr;
+          metricSSIM.textContent = data.ssim;
+          results.classList.add("active");
+
+          // Reset slider to 50 %
+          updateSlider(0.5);
+
+          // Scroll into view
+          results.scrollIntoView({ behavior: "smooth", block: "start" });
+        } catch (err) {
+          showToast("Network error – is the server running?");
+        } finally {
+          spinner.classList.remove("active");
+          btnProcess.disabled = false;
+        }
+      });
+
+      // ---- Before / After slider ----
+      function updateSlider(ratio) {
+        const pct = Math.max(0, Math.min(1, ratio)) * 100;
+        slider.style.left = pct + "%";
+        beforeImg.style.clipPath = `inset(0 ${100 - pct}% 0 0)`;
+      }
+
+      let dragging = false;
+
+      function getSliderRatio(e) {
+        const rect = comparison.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        return (clientX - rect.left) / rect.width;
+      }
+
+      comparison.addEventListener("mousedown",  () => (dragging = true));
+      comparison.addEventListener("touchstart", () => (dragging = true), { passive: true });
+      window.addEventListener("mouseup",        () => (dragging = false));
+      window.addEventListener("touchend",       () => (dragging = false));
+
+      comparison.addEventListener("mousemove", (e) => {
+        if (dragging) updateSlider(getSliderRatio(e));
+      });
+      comparison.addEventListener("touchmove", (e) => {
+        if (dragging) updateSlider(getSliderRatio(e));
+      }, { passive: true });
+
+      // Click/tap to jump
+      comparison.addEventListener("click", (e) => updateSlider(getSliderRatio(e)));
+    })();
+  </script>
+
+</body>
+</html>

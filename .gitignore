@@ -1,0 +1,23 @@
+# Byte-compiled / optimized
+__pycache__/
+*.py[cod]
+
+# Environment
+.env
+venv/
+.venv/
+
+# Uploads & outputs (optional – track as needed)
+uploads/
+static/outputs/
+
+# Model weights (large binary)
+*.pth
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
