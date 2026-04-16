@@ -1,8 +1,7 @@
-flask
+gradio
 onnxruntime
 Pillow
-python-dotenv
 numpy
+opencv-python-headless
 scikit-image
 scipy
-werkzeug

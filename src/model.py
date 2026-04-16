@@ -46,12 +46,12 @@ class SnowClearModel:
                 )
                 self.input_name = self.session.get_inputs()[0].name
                 self.using_onnx = True
-                print(f"[✓] Loaded ONNX model from {model_path}")
+                print(f"[OK] Loaded ONNX model from {model_path}")
             except Exception as e:
-                print(f"[!] Could not load ONNX model ({e}) – using enhancement fallback.")
+                print(f"[!] Could not load ONNX model ({e}) - using enhancement fallback.")
         else:
             reason = "onnxruntime not installed" if not ORT_AVAILABLE else f"'{model_path}' not found"
-            print(f"[!] {reason} – using classical enhancement fallback (demo mode).")
+            print(f"[!] {reason} - using classical enhancement fallback (demo mode).")
 
     def predict(self, input_np: np.ndarray) -> np.ndarray:
         """
