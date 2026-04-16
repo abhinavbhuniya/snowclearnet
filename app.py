@@ -15,7 +15,7 @@ from werkzeug.utils import secure_filename
 
 from src.model import load_model
 from src.processing import process_image
-from src import database as db
+# from src import database as db
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -135,7 +135,7 @@ def serve_tmp_image(filename):
     return send_from_directory(OUTPUT_FOLDER, filename)
 
 
-@app.route("/history")
+# @app.route("/history")
 def history():
     try:
         records = db.get_all_records(limit=20)

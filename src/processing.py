@@ -1,12 +1,13 @@
 """
-SnowClearNet – Image Processing Pipeline
-=========================================
+SnowClearNet – Image Processing Pipeline (Improved)
+==================================================
 Pre-processing, inference, and post-processing utilities.
-Uses PIL / numpy only (no torch dependency).
+Includes blending + enhancement for better visual output.
 """
 
 import numpy as np
 from PIL import Image
+import cv2
 from skimage.metrics import peak_signal_noise_ratio as psnr
 from skimage.metrics import structural_similarity as ssim
 
@@ -39,8 +40,10 @@ def tensor_to_pil(arr: np.ndarray) -> Image.Image:
     """
     if arr.ndim == 4:
         arr = arr[0]
+
     arr = np.clip(arr, 0, 1)
     arr = (arr.transpose(1, 2, 0) * 255).astype(np.uint8)  # (H, W, 3)
+
     return Image.fromarray(arr)
 
 
@@ -51,30 +54,65 @@ def tensor_to_pil(arr: np.ndarray) -> Image.Image:
 def process_image(model, image: Image.Image):
     """
     Run the full snow-removal pipeline on a single PIL image.
-
-    Parameters
-    ----------
-    model : SnowClearModel   – from src.model
-    image : PIL.Image.Image  – input snowy image
-
-    Returns
-    -------
-    output_pil : PIL.Image.Image   – Restored image
-    psnr_val   : float             – PSNR (input vs output)
-    ssim_val   : float             – SSIM (input vs output)
     """
+
+    # -----------------------------------------------------------------------
     # Pre-process
-    input_np = preprocess(image)            # (1, 3, 128, 128) float32
+    # -----------------------------------------------------------------------
+    input_np = preprocess(image)            # (1, 3, 128, 128)
 
-    # Inference
-    output_np = model.predict(input_np)     # (1, 3, 128, 128) float32
+    # -----------------------------------------------------------------------
+    # Model inference
+    # -----------------------------------------------------------------------
+    output_np = model.predict(input_np)     # (1, 3, 128, 128)
 
+    # -----------------------------------------------------------------------
+    # 🔥 FIX: Blend model output with input (prevents gray output)
+    # -----------------------------------------------------------------------
+    blended = 0.6 * input_np + 0.4 * output_np
+    blended = np.clip(blended, 0, 1)
+
+    # -----------------------------------------------------------------------
+    # 🔥 Enhancement (contrast + brightness)
+    # -----------------------------------------------------------------------
+    # --- Advanced enhancement pipeline ---
+
+    img_uint8 = (blended[0].transpose(1, 2, 0) * 255).astype(np.uint8)
+
+    # 1. Denoising (removes snow-like noise)
+    denoised = cv2.fastNlMeansDenoisingColored(img_uint8, None, 10, 10, 7, 21)
+
+    # 2. CLAHE contrast improvement
+    lab = cv2.cvtColor(denoised, cv2.COLOR_RGB2LAB)
+    l, a, b = cv2.split(lab)
+
+    clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8,8))
+    l = clahe.apply(l)
+
+    lab = cv2.merge((l, a, b))
+    contrast = cv2.cvtColor(lab, cv2.COLOR_LAB2RGB)
+
+    # 3. Sharpening
+    kernel = np.array([[0, -1, 0],
+                    [-1, 5,-1],
+                    [0, -1, 0]])
+
+    enhanced = cv2.filter2D(contrast, -1, kernel)
+
+    # Convert back to float for metrics
+    enhanced_float = enhanced.astype(np.float32) / 255.0
+    enhanced_float = enhanced_float.transpose(2, 0, 1)[np.newaxis, ...]
+
+    # -----------------------------------------------------------------------
     # Convert to PIL
-    output_pil = tensor_to_pil(output_np)
+    # -----------------------------------------------------------------------
+    output_pil = Image.fromarray(enhanced)
 
-    # Compute quality metrics (compare at model resolution)
-    in_hwc = input_np[0].transpose(1, 2, 0)    # (128, 128, 3)
-    out_hwc = output_np[0].transpose(1, 2, 0)  # (128, 128, 3)
+    # -----------------------------------------------------------------------
+    # Metrics (compare input vs enhanced output)
+    # -----------------------------------------------------------------------
+    in_hwc = input_np[0].transpose(1, 2, 0)
+    out_hwc = enhanced_float[0].transpose(1, 2, 0)
 
     psnr_val = float(psnr(in_hwc, out_hwc, data_range=1.0))
     ssim_val = float(ssim(in_hwc, out_hwc, data_range=1.0, channel_axis=2))
